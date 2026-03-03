@@ -162,11 +162,37 @@ export default function HomePage() {
           className="z-10 flex-shrink-0 overflow-y-auto border-l bg-white shadow-lg"
           style={{ width: sidebarWidth }}
         >
+          {/* Map Layers — always visible */}
+          <div className="p-4">
+            <CategoryToggles
+              activeCategories={activeCategories}
+              onToggle={(categories) => setActiveCategories(categories)}
+            />
+          </div>
+
+          {/* Heatmap Toggle — always visible */}
+          <div className="border-t p-4">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={showHeatmap}
+                onChange={(e) => setShowHeatmap(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-brand-600"
+              />
+              <span className="text-sm text-gray-700">Show heatmap</span>
+            </label>
+          </div>
+
+          {/* Score / Compare section */}
           {isComparing && compareLocations.length > 0 ? (
-            <CompareView locations={compareLocations} />
+            <div className="border-t">
+              <CompareView locations={compareLocations} />
+            </div>
           ) : scoreData ? (
             <>
-              <ScorePanel score={scoreData} loading={loading} />
+              <div className="border-t">
+                <ScorePanel score={scoreData} loading={loading} />
+              </div>
               <div className="border-t p-4">
                 <WeightSliders
                   preset={preset}
@@ -180,15 +206,9 @@ export default function HomePage() {
                   }}
                 />
               </div>
-              <div className="border-t p-4">
-                <CategoryToggles
-                  activeCategories={activeCategories}
-                  onToggle={(categories) => setActiveCategories(categories)}
-                />
-              </div>
             </>
           ) : (
-            <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+            <div className="flex flex-col items-center p-8 text-center">
               <div className="mb-4 rounded-full bg-brand-50 p-4">
                 <svg className="h-8 w-8 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -196,26 +216,13 @@ export default function HomePage() {
                 </svg>
               </div>
               <h2 className="text-lg font-semibold text-gray-800">
-                Search for an address
+                Click the map to score a location
               </h2>
               <p className="mt-2 text-sm text-gray-500">
-                Type an address or click anywhere on the map to see the livability score
+                Or search for an address above
               </p>
             </div>
           )}
-
-          {/* Heatmap Toggle */}
-          <div className="border-t p-4">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={showHeatmap}
-                onChange={(e) => setShowHeatmap(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-brand-600"
-              />
-              <span className="text-sm text-gray-700">Show heatmap</span>
-            </label>
-          </div>
         </aside>
       </div>
     </div>
