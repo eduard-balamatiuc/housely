@@ -4,7 +4,7 @@ import { useRef, useCallback, useEffect, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { LocationSelection, HexScore } from "@/types";
-import { CATEGORY_COLORS } from "@/types";
+import { CATEGORY_COLORS, CATEGORY_LABELS } from "@/types";
 import { getHeatmap, getAmenities } from "@/lib/api";
 
 interface MapViewProps {
@@ -35,6 +35,7 @@ export default function MapView({
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const marker = useRef<maplibregl.Marker | null>(null);
+  const tooltip = useRef<maplibregl.Popup | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
 
   // Initialize map
@@ -179,13 +180,15 @@ export default function MapView({
         .then(({ amenities }) => {
           if (!map.current) return;
           const sourceId = `amenity-${category}`;
-          const layerId = `amenity-${category}`;
+          const glowLayerId = `amenity-glow-${category}`;
+          const markerLayerId = `amenity-${category}`;
+          const categoryColor = CATEGORY_COLORS[category] || "#6B7280";
 
           const geojson: GeoJSON.FeatureCollection = {
             type: "FeatureCollection",
             features: amenities.map((a) => ({
               type: "Feature",
-              properties: { name: a.name || "", category: a.category },
+              properties: { name: a.name || "", category: a.category, subcategory: a.subcategory || "" },
               geometry: { type: "Point", coordinates: [a.lng, a.lat] },
             })),
           };
@@ -194,20 +197,44 @@ export default function MapView({
             (m.getSource(sourceId) as maplibregl.GeoJSONSource).setData(geojson);
           } else {
             m.addSource(sourceId, { type: "geojson", data: geojson });
+
+            // Glow layer: large blurred circle for radial gradient effect
             m.addLayer({
-              id: layerId,
+              id: glowLayerId,
+              type: "circle",
+              source: sourceId,
+              paint: {
+                "circle-radius": [
+                  "interpolate",
+                  ["linear"],
+                  ["zoom"],
+                  10, 10,
+                  13, 30,
+                  16, 50,
+                  18, 70,
+                ],
+                "circle-color": categoryColor,
+                "circle-blur": 1,
+                "circle-opacity": 0.45,
+                "circle-stroke-width": 0,
+              },
+            });
+
+            // Marker layer: small solid circle on top of the glow
+            m.addLayer({
+              id: markerLayerId,
               type: "circle",
               source: sourceId,
               paint: {
                 "circle-radius": 6,
-                "circle-color": CATEGORY_COLORS[category] || "#6B7280",
+                "circle-color": categoryColor,
                 "circle-stroke-width": 1.5,
                 "circle-stroke-color": "#ffffff",
               },
             });
 
-            // Popup on click
-            m.on("click", layerId, (e) => {
+            // Popup on click (marker layer only)
+            m.on("click", markerLayerId, (e) => {
               if (!e.features?.[0]) return;
               const props = e.features[0].properties;
               const coords = (e.features[0].geometry as GeoJSON.Point).coordinates;
@@ -219,10 +246,10 @@ export default function MapView({
                 .addTo(m);
             });
 
-            m.on("mouseenter", layerId, () => {
+            m.on("mouseenter", markerLayerId, () => {
               m.getCanvas().style.cursor = "pointer";
             });
-            m.on("mouseleave", layerId, () => {
+            m.on("mouseleave", markerLayerId, () => {
               m.getCanvas().style.cursor = "";
             });
           }
