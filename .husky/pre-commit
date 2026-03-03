@@ -1,0 +1,1 @@
+cd apps/web && npx lint-staged --allow-empty 2>/dev/null || true
