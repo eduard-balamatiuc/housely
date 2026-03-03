@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { SearchBar } from "@/components/search/SearchBar";
 import { ScorePanel } from "@/components/scoring/ScorePanel";
@@ -28,6 +28,48 @@ export default function HomePage() {
   const [customWeights, setCustomWeights] = useState<Record<string, number> | null>(null);
   const [showHeatmap, setShowHeatmap] = useState(true);
   const [loading, setLoading] = useState(false);
+
+  // Resizable sidebar state
+  const SIDEBAR_MIN = 320;
+  const SIDEBAR_MAX = 600;
+  const SIDEBAR_DEFAULT = 384;
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT);
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartWidth = useRef(SIDEBAR_DEFAULT);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging.current) return;
+      // Sidebar is on the right, so dragging left increases width
+      const delta = dragStartX.current - e.clientX;
+      const newWidth = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, dragStartWidth.current + delta));
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      if (!isDragging.current) return;
+      isDragging.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
+
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDragging.current = true;
+    dragStartX.current = e.clientX;
+    dragStartWidth.current = sidebarWidth;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }, [sidebarWidth]);
 
   const fetchScore = useCallback(
     async (lat: number, lng: number) => {
@@ -107,8 +149,19 @@ export default function HomePage() {
           />
         </div>
 
+        {/* Resize Handle */}
+        <div
+          onMouseDown={handleDragStart}
+          className="z-20 flex w-1.5 flex-shrink-0 cursor-col-resize items-center justify-center bg-gray-200 transition-colors hover:bg-brand-300 active:bg-brand-400"
+        >
+          <div className="h-8 w-0.5 rounded-full bg-gray-400" />
+        </div>
+
         {/* Side Panel */}
-        <aside className="z-10 w-96 overflow-y-auto border-l bg-white shadow-lg">
+        <aside
+          className="z-10 flex-shrink-0 overflow-y-auto border-l bg-white shadow-lg"
+          style={{ width: sidebarWidth }}
+        >
           {isComparing && compareLocations.length > 0 ? (
             <CompareView locations={compareLocations} />
           ) : scoreData ? (
