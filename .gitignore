@@ -55,3 +55,6 @@ htmlcov/
 
 # Alembic
 alembic.ini.local
+
+# Pipeline data
+pipelines/osm/data/
