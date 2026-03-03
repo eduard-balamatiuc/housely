@@ -21,26 +21,25 @@ async def get_amenities(
     db: AsyncSession = Depends(get_db),
 ):
     """Get amenities within a bounding box, optionally filtered by category."""
-    query = text("""
+    sql = """
         SELECT id, osm_id, name, category, subcategory,
                ST_Y(geom) as lat, ST_X(geom) as lng
         FROM amenities
         WHERE geom && ST_MakeEnvelope(:min_lng, :min_lat, :max_lng, :max_lat, 4326)
-        AND (:category IS NULL OR category = :category)
-        LIMIT :limit
-    """)
+    """
+    params: dict = {
+        "min_lat": min_lat,
+        "min_lng": min_lng,
+        "max_lat": max_lat,
+        "max_lng": max_lng,
+        "limit": limit,
+    }
+    if category is not None:
+        sql += " AND category = :category"
+        params["category"] = category
+    sql += " LIMIT :limit"
 
-    result = await db.execute(
-        query,
-        {
-            "min_lat": min_lat,
-            "min_lng": min_lng,
-            "max_lat": max_lat,
-            "max_lng": max_lng,
-            "category": category,
-            "limit": limit,
-        },
-    )
+    result = await db.execute(text(sql), params)
     rows = result.fetchall()
 
     amenities = [

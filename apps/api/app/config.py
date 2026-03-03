@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     geocode_cache_ttl: int = 86400
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3001"]
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002"]
 
     model_config = {"env_prefix": "", "case_sensitive": False}
 

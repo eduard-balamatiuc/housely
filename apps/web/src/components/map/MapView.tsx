@@ -4,7 +4,7 @@ import { useRef, useCallback, useEffect, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { LocationSelection, HexScore } from "@/types";
-import { CATEGORY_COLORS } from "@/types";
+import { CATEGORY_COLORS, CATEGORY_LABELS } from "@/types";
 import { getHeatmap, getAmenities } from "@/lib/api";
 
 interface MapViewProps {
@@ -35,6 +35,7 @@ export default function MapView({
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const marker = useRef<maplibregl.Marker | null>(null);
+  const tooltip = useRef<maplibregl.Popup | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
 
   // Initialize map
@@ -69,6 +70,10 @@ export default function MapView({
     map.current = m;
 
     return () => {
+      if (tooltip.current) {
+        tooltip.current.remove();
+        tooltip.current = null;
+      }
       m.remove();
       map.current = null;
     };
@@ -150,6 +155,12 @@ export default function MapView({
     if (!map.current || !mapLoaded) return;
     const m = map.current;
 
+    // Clean up tooltip when categories change
+    if (tooltip.current) {
+      tooltip.current.remove();
+      tooltip.current = null;
+    }
+
     // Remove existing amenity layers
     const existingLayers = m.getStyle().layers || [];
     existingLayers.forEach((layer) => {
@@ -179,13 +190,15 @@ export default function MapView({
         .then(({ amenities }) => {
           if (!map.current) return;
           const sourceId = `amenity-${category}`;
-          const layerId = `amenity-${category}`;
+          const glowLayerId = `amenity-glow-${category}`;
+          const markerLayerId = `amenity-${category}`;
+          const categoryColor = CATEGORY_COLORS[category] || "#6B7280";
 
           const geojson: GeoJSON.FeatureCollection = {
             type: "FeatureCollection",
             features: amenities.map((a) => ({
               type: "Feature",
-              properties: { name: a.name || "", category: a.category },
+              properties: { name: a.name || "", category: a.category, subcategory: a.subcategory || "" },
               geometry: { type: "Point", coordinates: [a.lng, a.lat] },
             })),
           };
@@ -194,36 +207,80 @@ export default function MapView({
             (m.getSource(sourceId) as maplibregl.GeoJSONSource).setData(geojson);
           } else {
             m.addSource(sourceId, { type: "geojson", data: geojson });
+
+            // Glow layer: large blurred circle for radial gradient effect
             m.addLayer({
-              id: layerId,
+              id: glowLayerId,
+              type: "circle",
+              source: sourceId,
+              paint: {
+                "circle-radius": [
+                  "interpolate",
+                  ["linear"],
+                  ["zoom"],
+                  10, 10,
+                  13, 30,
+                  16, 50,
+                  18, 70,
+                ],
+                "circle-color": categoryColor,
+                "circle-blur": 1,
+                "circle-opacity": 0.45,
+                "circle-stroke-width": 0,
+              },
+            });
+
+            // Marker layer: small solid circle on top of the glow
+            m.addLayer({
+              id: markerLayerId,
               type: "circle",
               source: sourceId,
               paint: {
                 "circle-radius": 6,
-                "circle-color": CATEGORY_COLORS[category] || "#6B7280",
+                "circle-color": categoryColor,
                 "circle-stroke-width": 1.5,
                 "circle-stroke-color": "#ffffff",
               },
             });
 
-            // Popup on click
-            m.on("click", layerId, (e) => {
+            // Hover tooltip (marker layer only)
+            m.on("mouseenter", markerLayerId, (e) => {
+              m.getCanvas().style.cursor = "pointer";
               if (!e.features?.[0]) return;
               const props = e.features[0].properties;
-              const coords = (e.features[0].geometry as GeoJSON.Point).coordinates;
-              new maplibregl.Popup({ offset: 10 })
-                .setLngLat(coords as [number, number])
-                .setHTML(
-                  `<strong>${props?.name || "Unnamed"}</strong><br/><span style="color:#666">${props?.category}</span>`
-                )
-                .addTo(m);
+              const coords = (e.features[0].geometry as GeoJSON.Point).coordinates.slice() as [number, number];
+
+              const name = props?.name || "Unnamed";
+              const categoryLabel = CATEGORY_LABELS[props?.category] || props?.category || "";
+              const subcategory = props?.subcategory || "";
+
+              let html = `<div class="tooltip-name">${name}</div>`;
+              html += `<div class="tooltip-category">${categoryLabel}</div>`;
+              if (subcategory) {
+                html += `<div class="tooltip-subcategory">${subcategory}</div>`;
+              }
+
+              if (tooltip.current) {
+                tooltip.current.setLngLat(coords).setHTML(html);
+              } else {
+                tooltip.current = new maplibregl.Popup({
+                  closeButton: false,
+                  closeOnClick: false,
+                  offset: 12,
+                  className: "amenity-tooltip",
+                })
+                  .setLngLat(coords)
+                  .setHTML(html)
+                  .addTo(m);
+              }
             });
 
-            m.on("mouseenter", layerId, () => {
-              m.getCanvas().style.cursor = "pointer";
-            });
-            m.on("mouseleave", layerId, () => {
+            m.on("mouseleave", markerLayerId, () => {
               m.getCanvas().style.cursor = "";
+              if (tooltip.current) {
+                tooltip.current.remove();
+                tooltip.current = null;
+              }
             });
           }
         })

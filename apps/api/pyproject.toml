@@ -30,6 +30,9 @@ dev = [
     "alembic>=1.13",
 ]
 
+[tool.setuptools.packages.find]
+include = ["app*"]
+
 [tool.ruff]
 target-version = "py312"
 line-length = 100
