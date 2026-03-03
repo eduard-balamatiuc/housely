@@ -70,6 +70,10 @@ export default function MapView({
     map.current = m;
 
     return () => {
+      if (tooltip.current) {
+        tooltip.current.remove();
+        tooltip.current = null;
+      }
       m.remove();
       map.current = null;
     };
@@ -150,6 +154,12 @@ export default function MapView({
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
     const m = map.current;
+
+    // Clean up tooltip when categories change
+    if (tooltip.current) {
+      tooltip.current.remove();
+      tooltip.current = null;
+    }
 
     // Remove existing amenity layers
     const existingLayers = m.getStyle().layers || [];
@@ -233,24 +243,44 @@ export default function MapView({
               },
             });
 
-            // Popup on click (marker layer only)
-            m.on("click", markerLayerId, (e) => {
+            // Hover tooltip (marker layer only)
+            m.on("mouseenter", markerLayerId, (e) => {
+              m.getCanvas().style.cursor = "pointer";
               if (!e.features?.[0]) return;
               const props = e.features[0].properties;
-              const coords = (e.features[0].geometry as GeoJSON.Point).coordinates;
-              new maplibregl.Popup({ offset: 10 })
-                .setLngLat(coords as [number, number])
-                .setHTML(
-                  `<strong>${props?.name || "Unnamed"}</strong><br/><span style="color:#666">${props?.category}</span>`
-                )
-                .addTo(m);
+              const coords = (e.features[0].geometry as GeoJSON.Point).coordinates.slice() as [number, number];
+
+              const name = props?.name || "Unnamed";
+              const categoryLabel = CATEGORY_LABELS[props?.category] || props?.category || "";
+              const subcategory = props?.subcategory || "";
+
+              let html = `<div class="tooltip-name">${name}</div>`;
+              html += `<div class="tooltip-category">${categoryLabel}</div>`;
+              if (subcategory) {
+                html += `<div class="tooltip-subcategory">${subcategory}</div>`;
+              }
+
+              if (tooltip.current) {
+                tooltip.current.setLngLat(coords).setHTML(html);
+              } else {
+                tooltip.current = new maplibregl.Popup({
+                  closeButton: false,
+                  closeOnClick: false,
+                  offset: 12,
+                  className: "amenity-tooltip",
+                })
+                  .setLngLat(coords)
+                  .setHTML(html)
+                  .addTo(m);
+              }
             });
 
-            m.on("mouseenter", markerLayerId, () => {
-              m.getCanvas().style.cursor = "pointer";
-            });
             m.on("mouseleave", markerLayerId, () => {
               m.getCanvas().style.cursor = "";
+              if (tooltip.current) {
+                tooltip.current.remove();
+                tooltip.current = null;
+              }
             });
           }
         })
