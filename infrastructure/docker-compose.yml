@@ -5,12 +5,12 @@ services:
     environment:
       POSTGRES_DB: housely
       POSTGRES_USER: housely
-      POSTGRES_PASSWORD: housely_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U housely"]
       interval: 5s
@@ -36,7 +36,7 @@ services:
     ports:
       - "3001:3000"
     environment:
-      - DATABASE_URL=postgresql://housely:housely_dev@postgres:5432/housely
+      - DATABASE_URL=postgresql://housely:${POSTGRES_PASSWORD:-changeme}@postgres:5432/housely
     depends_on:
       postgres:
         condition: service_healthy
@@ -48,7 +48,7 @@ services:
     environment:
       PBF_URL: https://download.geofabrik.de/europe/moldova-latest.osm.pbf
       REPLICATION_URL: https://download.geofabrik.de/europe/moldova-updates/
-      NOMINATIM_PASSWORD: nominatim_dev
+      NOMINATIM_PASSWORD: ${NOMINATIM_PASSWORD:-changeme}
       IMPORT_STYLE: full
     ports:
       - "8088:8080"
@@ -79,8 +79,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://housely:housely_dev@postgres:5432/housely
-      - DATABASE_URL_SYNC=postgresql://housely:housely_dev@postgres:5432/housely
+      - DATABASE_URL=postgresql+asyncpg://housely:${POSTGRES_PASSWORD:-changeme}@postgres:5432/housely
+      - DATABASE_URL_SYNC=postgresql://housely:${POSTGRES_PASSWORD:-changeme}@postgres:5432/housely
       - REDIS_URL=redis://redis:6379/0
       - NOMINATIM_URL=http://nominatim:8080
       - VALHALLA_URL=http://valhalla:8002

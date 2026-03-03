@@ -1,7 +1,7 @@
 listen_addresses: '0.0.0.0:3000'
 
 postgres:
-  connection_string: postgresql://housely:housely_dev@postgres:5432/housely
+  connection_string: ${DATABASE_URL}
 
   tables:
     amenities:

@@ -5,8 +5,8 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # Database
-    database_url: str = "postgresql+asyncpg://housely:housely_dev@localhost:5432/housely"
-    database_url_sync: str = "postgresql://housely:housely_dev@localhost:5432/housely"
+    database_url: str = "postgresql+asyncpg://housely:changeme@localhost:5432/housely"
+    database_url_sync: str = "postgresql://housely:changeme@localhost:5432/housely"
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"

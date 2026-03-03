@@ -15,7 +15,7 @@ DB_HOST="${PGHOST:-localhost}"
 DB_PORT="${PGPORT:-5432}"
 DB_NAME="${PGDATABASE:-housely}"
 DB_USER="${PGUSER:-housely}"
-export PGPASSWORD="${PGPASSWORD:-housely_dev}"
+export PGPASSWORD="${PGPASSWORD:?Set PGPASSWORD environment variable}"
 
 echo "=== Housely OSM Import ==="
 echo "Database: ${DB_USER}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
