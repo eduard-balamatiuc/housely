@@ -1,0 +1,118 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: housely-postgres
+    environment:
+      POSTGRES_DB: housely
+      POSTGRES_USER: housely
+      POSTGRES_PASSWORD: housely_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U housely"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: housely-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  martin:
+    image: ghcr.io/maplibre/martin
+    container_name: housely-martin
+    ports:
+      - "3001:3000"
+    environment:
+      - DATABASE_URL=postgresql://housely:housely_dev@postgres:5432/housely
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nominatim:
+    image: mediagis/nominatim:4.4
+    container_name: housely-nominatim
+    environment:
+      PBF_URL: https://download.geofabrik.de/europe/moldova-latest.osm.pbf
+      REPLICATION_URL: https://download.geofabrik.de/europe/moldova-updates/
+      NOMINATIM_PASSWORD: nominatim_dev
+      IMPORT_STYLE: full
+    ports:
+      - "8088:8080"
+    volumes:
+      - nominatim_data:/var/lib/postgresql/14/main
+    shm_size: 1g
+
+  valhalla:
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+    container_name: housely-valhalla
+    ports:
+      - "8002:8002"
+    volumes:
+      - valhalla_data:/custom_files
+    environment:
+      - tile_urls=https://download.geofabrik.de/europe/moldova-latest.osm.pbf
+      - use_tiles_ignore_pbf=True
+      - build_elevation=False
+      - build_admins=True
+      - build_time_zones=True
+      - server_threads=2
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: housely-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://housely:housely_dev@postgres:5432/housely
+      - DATABASE_URL_SYNC=postgresql://housely:housely_dev@postgres:5432/housely
+      - REDIS_URL=redis://redis:6379/0
+      - NOMINATIM_URL=http://nominatim:8080
+      - VALHALLA_URL=http://valhalla:8002
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/api:/app/apps/api
+      - ./packages:/app/packages
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: housely-web
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_MARTIN_URL=http://localhost:3001
+      - NEXT_PUBLIC_MAPLIBRE_STYLE=https://basemaps.cartocdn.com/gl/positron-gl-style/style.json
+    depends_on:
+      - api
+    volumes:
+      - ./apps/web/src:/app/apps/web/src
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  nominatim_data:
+  valhalla_data:

@@ -1,0 +1,33 @@
+listen_addresses: '0.0.0.0:3000'
+
+postgres:
+  connection_string: postgresql://housely:housely_dev@postgres:5432/housely
+
+  tables:
+    amenities:
+      schema: public
+      table: amenities
+      srid: 4326
+      geometry_column: geom
+      id_column: id
+      properties:
+        name: text
+        category: text
+        subcategory: text
+    hex_scores:
+      schema: public
+      table: hex_scores
+      srid: 4326
+      geometry_column: geom
+      id_column: h3_index
+      properties:
+        overall_score: float8
+        category_scores: text
+
+  functions:
+    hex_tiles:
+      schema: public
+      function: hex_tiles
+    amenity_tiles:
+      schema: public
+      function: amenity_tiles
