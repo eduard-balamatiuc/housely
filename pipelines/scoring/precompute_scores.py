@@ -24,7 +24,7 @@ from shapely.geometry import Polygon
 # Add scoring package to path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "packages" / "scoring" / "src"))
 
-from scoring import calculate_score, CATEGORIES
+from scoring import calculate_score, CATEGORIES, CATEGORY_MAX_DISTANCE
 
 logging.basicConfig(
     level=logging.INFO,
@@ -77,7 +77,7 @@ def compute_hex_scores(
     conn,
     hexagons: list[str],
     resolution: int,
-    search_radius: float = 1500.0,
+    search_radius: float = max(1500.0, *(CATEGORY_MAX_DISTANCE.values())),
     batch_size: int = 100,
 ):
     """Compute scores for all hexagons and insert into hex_scores table."""

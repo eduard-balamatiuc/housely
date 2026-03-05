@@ -67,3 +67,35 @@ export async function compareLocations(
     body: JSON.stringify({ locations }),
   });
 }
+
+export async function getNearbySchools(
+  lat: number,
+  lng: number,
+  radius: number = 1500
+): Promise<{ schools: import("@/types").NearbySchool[]; total: number }> {
+  const params = new URLSearchParams({
+    lat: lat.toString(),
+    lng: lng.toString(),
+    radius: radius.toString(),
+  });
+  return fetchApi(`/api/v1/schools/nearby?${params}`);
+}
+
+export async function getPersonalizedScore(
+  lat: number,
+  lng: number,
+  options?: {
+    preset?: string;
+    custom_weights?: Record<string, number>;
+    school_ranks?: Record<number, number>;
+  }
+): Promise<import("@/types").ScoreResponse> {
+  return fetchApi("/api/v1/score", {
+    method: "POST",
+    body: JSON.stringify({
+      lat,
+      lng,
+      ...options,
+    }),
+  });
+}

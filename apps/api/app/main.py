@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
-from .routers import amenities, heatmap, score, search
+from .routers import amenities, heatmap, schools, score, search
 
 
 @asynccontextmanager
@@ -40,6 +40,7 @@ app.include_router(score.router)
 app.include_router(amenities.router)
 app.include_router(heatmap.router)
 app.include_router(search.router)
+app.include_router(schools.router)
 
 
 @app.get("/health")

@@ -24,3 +24,17 @@ def test_monotonically_decreasing():
     scores = [distance_decay(d) for d in distances]
     for i in range(len(scores) - 1):
         assert scores[i] >= scores[i + 1]
+
+
+def test_custom_max_distance():
+    # With max_distance=3000, 1500m should still yield a positive score
+    assert distance_decay(1500, max_distance=3000.0) > 0.0
+    assert distance_decay(2000, max_distance=3000.0) > 0.0
+    assert distance_decay(3000, max_distance=3000.0) == 0.0
+    assert distance_decay(3500, max_distance=3000.0) == 0.0
+
+
+def test_custom_max_distance_full_score_unchanged():
+    # Within MIN_DISTANCE still gets full score regardless of max_distance
+    assert distance_decay(200, max_distance=3000.0) == 1.0
+    assert distance_decay(400, max_distance=3000.0) == 1.0

@@ -58,3 +58,4 @@ alembic.ini.local
 
 # Pipeline data
 pipelines/osm/data/
+apps/web/tsconfig.tsbuildinfo

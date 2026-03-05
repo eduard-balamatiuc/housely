@@ -47,6 +47,19 @@ CREATE TABLE IF NOT EXISTS geocode_cache (
     cached_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- School rankings table (educat.md 2025 BAC results)
+CREATE TABLE IF NOT EXISTS school_rankings (
+    id SERIAL PRIMARY KEY,
+    educat_rank INTEGER NOT NULL UNIQUE,
+    educat_name TEXT NOT NULL,
+    sector TEXT,
+    amenity_id BIGINT REFERENCES amenities(id),
+    matched_name TEXT,
+    match_confidence FLOAT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_school_rankings_amenity ON school_rankings (amenity_id);
+
 -- Martin function for hex tiles
 CREATE OR REPLACE FUNCTION hex_tiles(z integer, x integer, y integer, query_params json)
 RETURNS bytea AS $$

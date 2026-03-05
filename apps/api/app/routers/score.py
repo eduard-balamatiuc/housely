@@ -8,6 +8,7 @@ from ..schemas.score import (
     CategoryScoreResponse,
     CompareRequest,
     CompareResponse,
+    PersonalizedScoreRequest,
     ScoreRequest,
     ScoreResponse,
 )
@@ -58,6 +59,38 @@ async def get_score_by_address(
     location = results[0]
     score = await compute_score(
         db, location["lat"], location["lng"], preset=preset
+    )
+    return ScoreResponse(
+        overall=score.overall,
+        grade=score.grade,
+        lat=score.lat,
+        lng=score.lng,
+        category_scores=[
+            CategoryScoreResponse(
+                category=cs.category,
+                score=cs.score,
+                amenity_count=cs.amenity_count,
+                nearest_distance=cs.nearest_distance,
+                weight=cs.weight,
+            )
+            for cs in score.category_scores
+        ],
+    )
+
+
+@router.post("/score", response_model=ScoreResponse)
+async def get_score_personalized(
+    request: PersonalizedScoreRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get livability score with personalized school rankings."""
+    score = await compute_score(
+        db,
+        request.lat,
+        request.lng,
+        preset=request.preset,
+        custom_weights=request.custom_weights,
+        school_ranks=request.school_ranks,
     )
     return ScoreResponse(
         overall=score.overall,

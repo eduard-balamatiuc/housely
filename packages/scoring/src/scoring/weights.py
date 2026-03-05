@@ -24,6 +24,12 @@ CATEGORIES = [
     "cultural",
 ]
 
+# Per-category search radius / max decay distance (meters).
+# Categories not listed use the global default (1500m).
+CATEGORY_MAX_DISTANCE: dict[str, float] = {
+    "schools": 3000.0,
+}
+
 # How many nearest amenities to consider per category
 CATEGORY_TOP_N = {
     "schools": 3,

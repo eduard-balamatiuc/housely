@@ -7,7 +7,11 @@ import { ScorePanel } from "@/components/scoring/ScorePanel";
 import { WeightSliders } from "@/components/filters/WeightSliders";
 import { CategoryToggles } from "@/components/filters/CategoryToggles";
 import { CompareView } from "@/components/compare/CompareView";
-import type { ScoreResponse, LocationSelection } from "@/types";
+import { SidebarTabs } from "@/components/sidebar/SidebarTabs";
+import { SchoolsPanel } from "@/components/schools/SchoolsPanel";
+import { useSchoolRankings } from "@/hooks/useSchoolRankings";
+import { getNearbySchools, getPersonalizedScore } from "@/lib/api";
+import type { ScoreResponse, LocationSelection, NearbySchool } from "@/types";
 
 const MapView = dynamic(() => import("@/components/map/MapView"), {
   ssr: false,
@@ -28,6 +32,10 @@ export default function HomePage() {
   const [customWeights, setCustomWeights] = useState<Record<string, number> | null>(null);
   const [showHeatmap, setShowHeatmap] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<"livability" | "schools">("livability");
+  const [nearbySchools, setNearbySchools] = useState<NearbySchool[]>([]);
+  const [schoolsLoading, setSchoolsLoading] = useState(false);
+  const { customRanks, setCustomRanks, resetToDefault, hasCustomRanks } = useSchoolRankings();
 
   // Resizable sidebar state
   const SIDEBAR_MIN = 320;
@@ -72,19 +80,31 @@ export default function HomePage() {
   }, [sidebarWidth]);
 
   const fetchScore = useCallback(
-    async (lat: number, lng: number) => {
+    async (lat: number, lng: number, schoolRanksOverride?: Record<number, number> | null) => {
       setLoading(true);
       try {
-        const params = new URLSearchParams({
-          lat: lat.toString(),
-          lng: lng.toString(),
-        });
-        if (preset !== "default") params.set("preset", preset);
+        const ranks = schoolRanksOverride !== undefined ? schoolRanksOverride : customRanks;
+        let data: ScoreResponse;
 
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-        const res = await fetch(`${apiUrl}/api/v1/score?${params}`);
-        if (!res.ok) throw new Error("Failed to fetch score");
-        const data: ScoreResponse = await res.json();
+        if (ranks) {
+          // Use POST endpoint with personalized school ranks
+          data = await getPersonalizedScore(lat, lng, {
+            preset: preset !== "default" ? preset : undefined,
+            school_ranks: ranks,
+          });
+        } else {
+          const params = new URLSearchParams({
+            lat: lat.toString(),
+            lng: lng.toString(),
+          });
+          if (preset !== "default") params.set("preset", preset);
+
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+          const res = await fetch(`${apiUrl}/api/v1/score?${params}`);
+          if (!res.ok) throw new Error("Failed to fetch score");
+          data = await res.json();
+        }
+
         setScoreData(data);
 
         if (isComparing) {
@@ -96,16 +116,50 @@ export default function HomePage() {
         setLoading(false);
       }
     },
-    [preset, isComparing]
+    [preset, isComparing, customRanks]
+  );
+
+  const fetchSchools = useCallback(
+    async (lat: number, lng: number) => {
+      setSchoolsLoading(true);
+      try {
+        const data = await getNearbySchools(lat, lng);
+        setNearbySchools(data.schools);
+      } catch (err) {
+        console.error("Schools fetch error:", err);
+        setNearbySchools([]);
+      } finally {
+        setSchoolsLoading(false);
+      }
+    },
+    []
   );
 
   const handleLocationSelect = useCallback(
     (location: LocationSelection) => {
       setSelectedLocation(location);
       fetchScore(location.lat, location.lng);
+      fetchSchools(location.lat, location.lng);
     },
-    [fetchScore]
+    [fetchScore, fetchSchools]
   );
+
+  const handleSchoolRanksChange = useCallback(
+    (ranks: Record<number, number> | null) => {
+      setCustomRanks(ranks);
+      if (selectedLocation) {
+        fetchScore(selectedLocation.lat, selectedLocation.lng, ranks);
+      }
+    },
+    [setCustomRanks, selectedLocation, fetchScore]
+  );
+
+  const handleResetSchoolRanks = useCallback(() => {
+    resetToDefault();
+    if (selectedLocation) {
+      fetchScore(selectedLocation.lat, selectedLocation.lng, null);
+    }
+  }, [resetToDefault, selectedLocation, fetchScore]);
 
   const handleMapClick = useCallback(
     (lat: number, lng: number) => {
@@ -146,6 +200,8 @@ export default function HomePage() {
             onMapClick={handleMapClick}
             activeCategories={activeCategories}
             showHeatmap={showHeatmap}
+            nearbySchools={nearbySchools}
+            schoolRanks={customRanks ?? undefined}
           />
         </div>
 
@@ -183,16 +239,33 @@ export default function HomePage() {
             </label>
           </div>
 
-          {/* Score / Compare section */}
+          {/* Tabs + Score / Schools / Compare */}
           {isComparing && compareLocations.length > 0 ? (
             <div className="border-t">
               <CompareView locations={compareLocations} />
             </div>
-          ) : scoreData ? (
+          ) : scoreData || nearbySchools.length > 0 ? (
             <>
-              <div className="border-t">
-                <ScorePanel score={scoreData} loading={loading} />
-              </div>
+              <SidebarTabs activeTab={activeTab} onTabChange={setActiveTab} />
+
+              {activeTab === "livability" ? (
+                scoreData ? (
+                  <div className="border-t">
+                    <ScorePanel score={scoreData} loading={loading} />
+                  </div>
+                ) : null
+              ) : (
+                <div className="border-t">
+                  <SchoolsPanel
+                    schools={nearbySchools}
+                    loading={schoolsLoading}
+                    hasCustomRanks={hasCustomRanks}
+                    onRanksChange={handleSchoolRanksChange}
+                    onResetRanks={handleResetSchoolRanks}
+                  />
+                </div>
+              )}
+
               <div className="border-t p-4">
                 <WeightSliders
                   preset={preset}

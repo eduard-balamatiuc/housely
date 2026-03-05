@@ -9,8 +9,8 @@ Given a point and nearby amenities, computes:
 
 from dataclasses import dataclass
 
-from .decay import distance_decay
-from .weights import CATEGORIES, CATEGORY_TOP_N, get_weights
+from .decay import MAX_DISTANCE, distance_decay
+from .weights import CATEGORIES, CATEGORY_MAX_DISTANCE, CATEGORY_TOP_N, get_weights
 
 
 @dataclass
@@ -53,17 +53,20 @@ def score_to_grade(score: float) -> str:
 def calculate_category_score(
     distances: list[float],
     category: str,
+    quality_multipliers: list[float] | None = None,
 ) -> float:
     """
     Calculate score for a single category given distances to amenities.
 
     Takes the N nearest amenities (N from CATEGORY_TOP_N),
-    applies distance decay to each, averages the decayed values,
-    and scales to 0-100.
+    applies distance decay to each, optionally multiplies by quality,
+    averages the values, and scales to 0-100.
 
     Args:
         distances: Sorted list of distances (meters) to amenities in this category.
         category: Category name (for looking up top_n).
+        quality_multipliers: Optional list of quality multipliers aligned with distances.
+            When provided, each decayed value is multiplied by the corresponding multiplier.
 
     Returns:
         Category score from 0 to 100.
@@ -72,16 +75,24 @@ def calculate_category_score(
         return 0.0
 
     top_n = CATEGORY_TOP_N.get(category, 3)
+    max_dist = CATEGORY_MAX_DISTANCE.get(category, MAX_DISTANCE)
     nearest = distances[:top_n]
 
-    # Apply decay to each amenity distance
-    decayed = [distance_decay(d) for d in nearest]
+    # Apply decay to each amenity distance (category-specific max distance)
+    decayed = [distance_decay(d, max_distance=max_dist) for d in nearest]
+
+    # Apply quality multipliers if provided
+    if quality_multipliers:
+        nearest_multipliers = quality_multipliers[:top_n]
+        decayed = [
+            d * m for d, m in zip(decayed, nearest_multipliers)
+        ]
 
     # Average decayed values
     avg_decay = sum(decayed) / top_n  # Divide by top_n, not len(nearest)
     # This penalizes categories with fewer amenities than expected
 
-    return round(avg_decay * 100, 1)
+    return round(min(avg_decay * 100, 100.0), 1)
 
 
 def calculate_score(
@@ -90,6 +101,7 @@ def calculate_score(
     lng: float,
     preset: str | None = None,
     custom_weights: dict[str, float] | None = None,
+    quality_data: dict[str, list[float]] | None = None,
 ) -> LivabilityScore:
     """
     Calculate overall livability score for a location.
@@ -101,6 +113,8 @@ def calculate_score(
         lng: Longitude of the scored point.
         preset: Optional preset slug for weight selection.
         custom_weights: Optional custom weight overrides.
+        quality_data: Optional dict mapping category to list of quality multipliers
+            aligned with the distance lists. Used for school ranking boosts.
 
     Returns:
         LivabilityScore with overall score, grade, and per-category breakdown.
@@ -113,7 +127,8 @@ def calculate_score(
 
     for category in CATEGORIES:
         distances = amenities_by_category.get(category, [])
-        cat_score = calculate_category_score(distances, category)
+        multipliers = quality_data.get(category) if quality_data else None
+        cat_score = calculate_category_score(distances, category, quality_multipliers=multipliers)
         weight = weights.get(category, 1.0)
 
         category_scores.append(CategoryScore(

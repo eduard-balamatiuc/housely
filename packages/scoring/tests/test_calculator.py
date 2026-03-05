@@ -53,3 +53,33 @@ def test_grade_boundaries():
     assert score_to_grade(45) == "C"
     assert score_to_grade(30) == "D"
     assert score_to_grade(10) == "F"
+
+
+def test_schools_counted_within_3km():
+    """Schools at 2km should contribute a positive score (3km max range)."""
+    amenities = {"schools": [2000, 2200, 2500]}
+    result = calculate_score(amenities, lat=47.02, lng=28.83)
+    school_score = next(
+        cs for cs in result.category_scores if cs.category == "schools"
+    )
+    assert school_score.score > 0.0
+
+
+def test_schools_beyond_3km_zero():
+    """Schools beyond 3km should score zero."""
+    amenities = {"schools": [3100, 4000, 5000]}
+    result = calculate_score(amenities, lat=47.02, lng=28.83)
+    school_score = next(
+        cs for cs in result.category_scores if cs.category == "schools"
+    )
+    assert school_score.score == 0.0
+
+
+def test_other_categories_unchanged():
+    """Non-school categories still use the default 1500m cutoff."""
+    amenities = {"supermarkets": [2000, 2200, 2500]}
+    result = calculate_score(amenities, lat=47.02, lng=28.83)
+    supermarket_score = next(
+        cs for cs in result.category_scores if cs.category == "supermarkets"
+    )
+    assert supermarket_score.score == 0.0

@@ -26,6 +26,14 @@ class ScoreRequest(BaseModel):
     custom_weights: dict[str, float] | None = None
 
 
+class PersonalizedScoreRequest(BaseModel):
+    lat: float = Field(ge=46.9, le=47.1)
+    lng: float = Field(ge=28.7, le=29.0)
+    preset: str | None = None
+    custom_weights: dict[str, float] | None = None
+    school_ranks: dict[int, int] | None = None  # {amenity_id: user_rank}
+
+
 class CompareRequest(BaseModel):
     locations: list[ScoreRequest] = Field(min_length=2, max_length=4)
 

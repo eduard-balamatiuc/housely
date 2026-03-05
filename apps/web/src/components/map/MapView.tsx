@@ -3,7 +3,7 @@
 import { useRef, useCallback, useEffect, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { LocationSelection, HexScore } from "@/types";
+import type { LocationSelection, HexScore, NearbySchool } from "@/types";
 import { CATEGORY_COLORS, CATEGORY_LABELS } from "@/types";
 import { getHeatmap, getAmenities } from "@/lib/api";
 
@@ -12,6 +12,8 @@ interface MapViewProps {
   onMapClick: (lat: number, lng: number) => void;
   activeCategories: Set<string>;
   showHeatmap: boolean;
+  nearbySchools?: NearbySchool[];
+  schoolRanks?: Record<number, number>;
 }
 
 // Chisinau center
@@ -31,6 +33,8 @@ export default function MapView({
   onMapClick,
   activeCategories,
   showHeatmap,
+  nearbySchools,
+  schoolRanks,
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
@@ -287,6 +291,123 @@ export default function MapView({
         .catch((err) => console.error(`Amenity load error (${category}):`, err));
     });
   }, [activeCategories, mapLoaded]);
+
+  // School rank badges layer
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+    const m = map.current;
+
+    // Clean up existing school rank layers
+    if (m.getLayer("school-rank-labels")) m.removeLayer("school-rank-labels");
+    if (m.getLayer("school-rank-circles")) m.removeLayer("school-rank-circles");
+    if (m.getSource("school-ranks")) m.removeSource("school-ranks");
+
+    if (!nearbySchools || nearbySchools.length === 0 || !activeCategories.has("schools")) return;
+
+    const geojson: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: nearbySchools
+        .filter((s) => s.educat_rank !== null || (schoolRanks && schoolRanks[s.amenity_id]))
+        .map((s) => {
+          const rank = schoolRanks?.[s.amenity_id] ?? s.educat_rank ?? 0;
+          return {
+            type: "Feature" as const,
+            properties: {
+              rank,
+              name: s.name || "Unnamed",
+              sector: s.sector || "",
+              distance: Math.round(s.distance_m),
+            },
+            geometry: {
+              type: "Point" as const,
+              coordinates: [s.lng, s.lat],
+            },
+          };
+        }),
+    };
+
+    m.addSource("school-ranks", { type: "geojson", data: geojson });
+
+    // Circle background for rank badge
+    m.addLayer({
+      id: "school-rank-circles",
+      type: "circle",
+      source: "school-ranks",
+      paint: {
+        "circle-radius": 11,
+        "circle-color": [
+          "case",
+          ["<=", ["get", "rank"], 5], "#FFFBEB",
+          ["<=", ["get", "rank"], 10], "#F8FAFC",
+          "#F3F4F6",
+        ],
+        "circle-stroke-width": 2,
+        "circle-stroke-color": [
+          "case",
+          ["<=", ["get", "rank"], 5], "#F59E0B",
+          ["<=", ["get", "rank"], 10], "#94A3B8",
+          "#D1D5DB",
+        ],
+      },
+    });
+
+    // Rank number label
+    m.addLayer({
+      id: "school-rank-labels",
+      type: "symbol",
+      source: "school-ranks",
+      layout: {
+        "text-field": ["to-string", ["get", "rank"]],
+        "text-size": 11,
+        "text-font": ["Open Sans Bold"],
+        "text-allow-overlap": true,
+        "text-ignore-placement": true,
+      },
+      paint: {
+        "text-color": [
+          "case",
+          ["<=", ["get", "rank"], 5], "#92400E",
+          ["<=", ["get", "rank"], 10], "#475569",
+          "#6B7280",
+        ],
+      },
+    });
+
+    // Tooltip for rank badges
+    m.on("mouseenter", "school-rank-circles", (e) => {
+      m.getCanvas().style.cursor = "pointer";
+      if (!e.features?.[0]) return;
+      const props = e.features[0].properties;
+      const coords = (e.features[0].geometry as GeoJSON.Point).coordinates.slice() as [number, number];
+
+      let html = `<div class="tooltip-name">${props?.name}</div>`;
+      html += `<div class="tooltip-category">Rank #${props?.rank}</div>`;
+      if (props?.sector) html += `<div class="tooltip-subcategory">${props?.sector}</div>`;
+      html += `<div class="tooltip-subcategory">${props?.distance}m away</div>`;
+
+      if (tooltip.current) {
+        tooltip.current.setLngLat(coords).setHTML(html);
+      } else {
+        tooltip.current = new maplibregl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          offset: 14,
+          className: "amenity-tooltip",
+        })
+          .setLngLat(coords)
+          .setHTML(html)
+          .addTo(m);
+      }
+    });
+
+    m.on("mouseleave", "school-rank-circles", () => {
+      m.getCanvas().style.cursor = "";
+      if (tooltip.current) {
+        tooltip.current.remove();
+        tooltip.current = null;
+      }
+    });
+  }, [nearbySchools, schoolRanks, activeCategories, mapLoaded]);
 
   return <div ref={mapContainer} className="h-full w-full" />;
 }

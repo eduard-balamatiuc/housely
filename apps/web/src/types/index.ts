@@ -47,6 +47,16 @@ export interface AmenityData {
   distance?: number;
 }
 
+export interface NearbySchool {
+  amenity_id: number;
+  name: string | null;
+  distance_m: number;
+  educat_rank: number | null;
+  sector: string | null;
+  lat: number;
+  lng: number;
+}
+
 export type ScoringPreset = "default" | "family" | "young_professional" | "retiree";
 
 export const CATEGORY_LABELS: Record<string, string> = {
